@@ -7,7 +7,7 @@
 
 ## Introduction
 
-In this project, you need to perform a simplified image compression on the given grayscale image in memory. The purpose of this project is to make you familiar with the binary representation of integers and the bit-level operations supported in the C programming language. Another goal is to make your Linux or MacOS development environment ready and to get familar with our project submission server.
+In this project, you need to perform a simplified image compression on the given grayscale image in memory. The purpose of this project is to make you familiar with the binary representation of integers and the bit-level operations supported in the C programming language. Another goal is to make your Linux or MacOS development environment ready and to get familiar with our project submission server.
 
 ## Background
 
