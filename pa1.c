@@ -16,8 +16,7 @@ int encode(const u8* src, int width, int height, u8* result)
   // Phase I
   if(width == 0 || height == 0) return 0;
   else{
-    int lenght_counter = 0; // Counter of bits
-    u8 *answer_string;
+    int length_counter = 0; // Counter of bits
     for(int i = 1 ; i <= height; i++){
       // Variables for each row
       u8 base = 0; // minimum FILTER
@@ -71,18 +70,20 @@ int encode(const u8* src, int width, int height, u8* result)
         row_end += width;
       }
       // PASS THE BASE TO THE RESULT ARRAY
-      int j = 0;
-      u8 *base_string = malloc(sizeof(u8) * 8 + 1);
-      
-      for (int i = 31; i >= 0; i--) {
-        base_string[i] = base & 1;
-        base >> 1;
-      }
+      int shiftRight = length_counter % 8;
+      u8 first_part = base >> shiftRight;
+      u8 second_part;
+      *(result + length_counter/8) = first_part | *(result + length_counter/8);
 
-      while (base_string[j] != '\0') {
-          base_string[j] = answer_string[lenght_counter];
-          lenght_counter++;
-          j++;
+      if(shiftRight > 0){
+        int shiftLeft = 8 - shiftRight;
+        second_part = base << shiftLeft;
+        length_counter += shiftLeft;
+        *(result+length_counter/8) = second_part;
+        length_counter += shiftRight;
+
+      }else{
+        length_counter += 8;
       }
 
       // LOOP FOR THE DELTAS
@@ -110,23 +111,57 @@ int encode(const u8* src, int width, int height, u8* result)
       else number_bits = 8;
 
       // PASS NUMBER OF BITS TO THE ARRAY
+      // number of bits should be written in 4 bits
+      u8 significant_bits = number_bits <<= 4;
 
+      shiftRight = length_counter % 8;
+      u8 first_part = significant_bits >> shiftRight;
+      u8 second_part;
+      *(result + length_counter/8) = first_part | *(result + length_counter/8);
 
-      if(number_bits == 0){
+      if(shiftRight > 4){
+
+        int shiftLeft = 8 - shiftRight;
+        length_counter += shiftLeft;
+        second_part = significant_bits << shiftLeft;
         
+        *(result+length_counter/8) = second_part;
+        length_counter += 4 - shiftLeft;
 
-        // PASS THE DELTAS IN THE RESULT ARRAY
-        u8 row_start = 0;
-        u8 row_end = width;
-        for(int j = row_start ; j < i*row_end ; j++){
-          u8 delta = src[i] - base;
-          // PUSH HERE
+      }else{
+        length_counter += 4;
+      }
+      if(number_bits == 0){
+        continue;
+      }
 
+
+      // PASS THE DELTAS IN THE RESULT ARRAY
+      u8 row_start = 0;
+      u8 row_end = width;
+      for(int j = row_start ; j < i*row_end ; j++){
+        u8 delta = src[i] - base;
+        // PUSH HERE
+          u8 significant_bits_delta = delta >>= (8-number_bits);
+
+          shiftRight = length_counter % 8;
+          u8 first_part = significant_bits_delta >> shiftRight;
+          u8 second_part;
+          *(result + length_counter/8) = first_part | *(result + length_counter/8);
+
+          if(shiftRight > 8 - number_bits){
+            int shiftLeft = 8 - shiftRight;
+            length_counter += shiftLeft;
+            second_part = significant_bits_delta << shiftLeft;
+            
+            *(result+length_counter/8) = second_part;
+            length_counter += number_bits - shiftLeft;
+
+          }else{
+            length_counter += 8;
         }
       }
-      
     }
-
   }
   return 0;
 }
