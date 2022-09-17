@@ -16,6 +16,7 @@
 //  Seoul National University
 //
 //---------------------------------------------------------------
+#include <stdio.h>
 
 typedef unsigned char u8;
 
@@ -33,61 +34,67 @@ int encode(const u8* src, int width, int height, u8* result)
     should not be corrupted*/
 
   // Phase I
+  int length_counter = 0; // Counter of bits
   if(width == 0 || height == 0) return 0;
   else{
-    int length_counter = 0; // Counter of bits
-    for(int i = 1 ; i <= height; i++){
+    
+    u8 row_start = 0;
+    u8 row_end = width;
+    for(int i = 0; i < height; i++){
       // Variables for each row
-      u8 base = 0; // minimum FILTER
+      u8 base = 255; // minimum FILTER
       u8 max_delta = 0;
-      u8 number_bits; // 
-      u8 row_start = 0;
-      u8 row_end = width;
-      for(int j = row_start ; j < i*row_end ; j++){
+      u8 number_bits; 
+      for(int j = row_start ; j < row_end ; j++){
         //Variables for each number
-        u8 pixel_back;
-        u8 pixel_up;
-        u8 pixel_back_up;
+        u8 pixel_back = 0;
+        u8 pixel_up = 0;
+        u8 pixel_back_up = 0;
         u8 avg;
         u8 filter;
 
         // FIRST PART: LOCATING THE THREE BLOCKS AND CALCULATING AVERAGE
         // Back Assignment
-        if(i % width == 0){
-          pixel_back = 0;
+        u8 divider = 3;
+        if(j % width == 0){
+          divider--;
         } else{ 
-          pixel_back = src[i-1];
+          pixel_back = *(src + j-1);
         }
         // Up assignment
-        if(i < width){
-          pixel_up = 0;
+        if(j < width){
+          divider--;
         }else{
-          pixel_up = src[i-width];
+          pixel_up = *(src+j-width);
         }
         // Up back assignment
-        if(i < width || i % width == 0){
-          pixel_back_up = 0;
+        if(j < width || j % width == 0){
+          divider--;
         }else{
-          pixel_back_up = src[i-width-1];
+          pixel_back_up = *(src+j-width-1);
         }
-
-        avg = (pixel_back + pixel_back_up + pixel_up) / 3;
-        
+        if(divider == 0) divider = 1;
+        avg = (pixel_back + pixel_back_up + pixel_up) / divider;
         // SECOND PART: CALCULATING FILTER
         // FILTER IS THE PIXEL VALUE MINUS THE AVERAGE
         
-        if(src[i] >= avg){
-          filter = src[i] - avg;
+        if(*(src+j) >= avg){
+          filter = *(src+j)  - avg;
         }else{
-          filter = src[i] + 256 - avg;
+          filter = *(src+j)  + 256 - avg;
         }
         // THIRD PART: CALCULATE THE BASE
-        if(base > filter){
+       
+        if(base > filter) {
           base = filter;
         }
-        row_start += width;
-        row_end += width;
+
       }
+
+// END OF FIXING
+
+
+
       // PASS THE BASE TO THE RESULT ARRAY
       int shiftRight = length_counter % 8;
       u8 first_part = base >> shiftRight;
@@ -98,25 +105,66 @@ int encode(const u8* src, int width, int height, u8* result)
         int shiftLeft = 8 - shiftRight;
         second_part = base << shiftLeft;
         length_counter += shiftLeft;
-        *(result+length_counter/8) = second_part;
+        *(result+length_counter/8) = second_part | 0;
         length_counter += shiftRight;
 
       }else{
         length_counter += 8;
       }
 
+
+// START OF FIXING
       // LOOP FOR THE DELTAS
       // DELTA IS THE ORIGINAL VALUE MINUS THE BASE
-      u8 row_start = 0;
-      u8 row_end = width;
-      for(int j = row_start ; j < i*row_end ; j++){
-        u8 delta = src[i] - base;
+      for(int j = row_start ; j < row_end ; j++){
+
+
+ //Variables for each number
+        u8 pixel_back = 0;
+        u8 pixel_up = 0;
+        u8 pixel_back_up = 0;
+        u8 avg;
+        u8 filter;
+
+        // FIRST PART: LOCATING THE THREE BLOCKS AND CALCULATING AVERAGE
+        // Back Assignment
+        u8 divider = 3;
+        if(j % width == 0){
+          divider--;
+        } else{ 
+          pixel_back = *(src + j-1);
+        }
+        // Up assignment
+        if(j < width){
+          divider--;
+        }else{
+          pixel_up = *(src+j-width);
+        }
+        // Up back assignment
+        if(j < width || j % width == 0){
+          divider--;
+        }else{
+          pixel_back_up = *(src+j-width-1);
+        }
+        if(divider == 0) divider = 1;
+        avg = (pixel_back + pixel_back_up + pixel_up) / divider;
+        // SECOND PART: CALCULATING FILTER
+        // FILTER IS THE PIXEL VALUE MINUS THE AVERAGE
+        
+        if(*(src+j) >= avg){
+          filter = *(src+j)  - avg;
+        }else{
+          filter = *(src+j)  + 256 - avg;
+        }
+
+        u8 delta = filter - base;
         
         // COMPARE TO THE MAX DELTA
         if(max_delta < delta){
           max_delta = delta;
         }
       }
+
 
       //FIND THE NUMBER OF BITS (n(i))
       if(max_delta == 0) number_bits = 0;
@@ -129,59 +177,124 @@ int encode(const u8* src, int width, int height, u8* result)
       else if(max_delta < 128) number_bits = 7;
       else number_bits = 8;
 
-      // PASS NUMBER OF BITS TO THE ARRAY
-      // number of bits should be written in 4 bits
-      u8 significant_bits = number_bits <<= 4;
+      
+      // END OF FIXING
+
+      // START OF THE FINAL PART 
+     //PASS NUMBER OF BITS TO THE ARRAY
+     //number of bits should be written in 4 bits
+     // LETs change this
+      u8 significant_bits = number_bits << 4;
 
       shiftRight = length_counter % 8;
-      u8 first_part = significant_bits >> shiftRight;
-      u8 second_part;
+      first_part = significant_bits >> shiftRight;
       *(result + length_counter/8) = first_part | *(result + length_counter/8);
 
-      if(shiftRight > 4){
-
+      if(shiftRight > 8 - 4){
+        // ACA!!
+        //ACAA!!!
         int shiftLeft = 8 - shiftRight;
         length_counter += shiftLeft;
         second_part = significant_bits << shiftLeft;
         
-        *(result+length_counter/8) = second_part;
+        *(result+length_counter/8) = second_part | 0;
         length_counter += 4 - shiftLeft;
 
-      }else{
+      }
+      // YOU SHOULDNT WRITE ANY DELTAS WHEN THE NUMER OF BITS IS 0
+      else{
         length_counter += 4;
       }
-      if(number_bits == 0){
-        continue;
-      }
-
+      // END OF THE FINAL PART
 
       // PASS THE DELTAS IN THE RESULT ARRAY
-      u8 row_start = 0;
-      u8 row_end = width;
-      for(int j = row_start ; j < i*row_end ; j++){
-        u8 delta = src[i] - base;
-        // PUSH HERE
-          u8 significant_bits_delta = delta >>= (8-number_bits);
+      
+      for(int j = row_start ; j < row_end ; j++){
+
+        
+        if(number_bits == 0) continue;
+        else{
+          //Variables for each number
+          u8 pixel_back = 0;
+          u8 pixel_up = 0;
+          u8 pixel_back_up = 0;
+          u8 avg;
+          u8 filter;
+
+          // FIRST PART: LOCATING THE THREE BLOCKS AND CALCULATING AVERAGE
+          // Back Assignment
+          u8 divider = 3;
+          if(j % width == 0){
+            divider--;
+          } else{ 
+            pixel_back = *(src + j-1);
+          }
+          // Up assignment
+          if(j < width){
+            divider--;
+          }else{
+            pixel_up = *(src+j-width);
+          }
+          // Up back assignment
+          if(j < width || j % width == 0){
+            divider--;
+          }else{
+            pixel_back_up = *(src+j-width-1);
+          }
+          if(divider == 0) divider = 1;
+          avg = (pixel_back + pixel_back_up + pixel_up) / divider;
+          // SECOND PART: CALCULATING FILTER
+          // FILTER IS THE PIXEL VALUE MINUS THE AVERAGE
+        
+          if(*(src+j) >= avg){
+            filter = *(src+j)  - avg;
+          }else{
+            filter = *(src+j)  + 256 - avg;
+          }
+
+          u8 delta = filter - base;
+          
+
+          // PUSH HERE
+          //FIJATE ACAA!!
+          u8 significant_bits_delta = delta << (8 - number_bits);
 
           shiftRight = length_counter % 8;
           u8 first_part = significant_bits_delta >> shiftRight;
           u8 second_part;
           *(result + length_counter/8) = first_part | *(result + length_counter/8);
-
+          // AQUI!!!
           if(shiftRight > 8 - number_bits){
+            //ACA!!
             int shiftLeft = 8 - shiftRight;
             length_counter += shiftLeft;
             second_part = significant_bits_delta << shiftLeft;
+            //START OF FIXING
+            *(result+length_counter/8) = second_part | 0;
+            length_counter += number_bits- shiftLeft;
+            //END OF FIXING
+            }else{
+              // ACA!!
+                length_counter += number_bits;
             
-            *(result+length_counter/8) = second_part;
-            length_counter += number_bits - shiftLeft;
-
-          }else{
-            length_counter += 8;
+          }
         }
+          
       }
+
+      row_start += width;
+      row_end += width;
+    }
+    //PADDING
+    if(length_counter % 8 != 0) {
+      u8 shiftLeft = 8 - (length_counter % 8);
+
+      u8 zeros = 0;
+      u8 zeros_bits = zeros << shiftLeft;
+      *(result + length_counter/8) = *(result + length_counter/8) | zeros_bits;
+      length_counter += shiftLeft;
     }
   }
-  return 0;
+  return length_counter/8;
 }
 
